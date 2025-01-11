@@ -243,6 +243,7 @@ pub const Client = struct {
 
     fn requestEntryList(self: *@This()) !void {
         if (self.connection.id) |id| {
+            debugLog("Will request entry list...\n", .{});
             var writer = try format.requestEntryList(self.allocator, id);
             defer writer.deinit();
             try self.send(writer.asBytes());
@@ -251,6 +252,7 @@ pub const Client = struct {
 
     fn requestTrackData(self: *@This()) !void {
         if (self.connection.id) |id| {
+            debugLog("Will request track data...\n", .{});
             var writer = try format.requestTrackData(self.allocator, id);
             defer writer.deinit();
             try self.send(writer.asBytes());
