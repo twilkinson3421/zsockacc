@@ -106,21 +106,21 @@ pub fn trackData(allocator: std.mem.Allocator, reader: *binutils.Reader) !msg.Tr
     track_data.track_id = try reader.read(i32);
     track_data.track_length_m = try reader.read(i32);
     track_data.camera_sets = .{};
+
     var camera_set_count = try reader.read(u8);
     while (camera_set_count > 0) : (camera_set_count -= 1) {
-        const camera_set_name = try reader.readBytesWithLen(u16);
+        const set_name = try reader.readBytesWithLen(u16);
         var camera_count = try reader.read(u8);
         var camera_list = std.ArrayList(u8).init(allocator);
-        errdefer camera_list.deinit();
+        defer camera_list.deinit();
+
         while (camera_count > 0) : ({
             camera_count -= 1;
             try camera_list.append(0);
         }) for (try reader.readBytesWithLen(u16)) |c| try camera_list.append(c);
-        const camera_set_case =
-            std.meta.stringToEnum(enums.CameraSetName, camera_set_name) orelse {
-            camera_list.deinit();
-            continue;
-        };
+
+        const CameraEnum = enums.CameraSetName;
+        const camera_set_case = std.meta.stringToEnum(CameraEnum, set_name) orelse continue;
         const camera_set = switch (camera_set_case) {
             .Driveable => &track_data.camera_sets.driveable,
             .Onboard => &track_data.camera_sets.onboard,
@@ -132,6 +132,7 @@ pub fn trackData(allocator: std.mem.Allocator, reader: *binutils.Reader) !msg.Tr
         };
         camera_set.* = try camera_list.toOwnedSlice();
     }
+
     var hud_pages_count = try reader.read(u8);
     var hud_pages = std.ArrayList(u8).init(allocator);
     errdefer hud_pages.deinit();
@@ -140,7 +141,19 @@ pub fn trackData(allocator: std.mem.Allocator, reader: *binutils.Reader) !msg.Tr
         try hud_pages.append(0);
     }) for (try reader.readBytesWithLen(u16)) |c| try hud_pages.append(c);
     track_data.hud_pages = try hud_pages.toOwnedSlice();
+
     return track_data;
+}
+
+pub fn deinitTrackData(allocator: std.mem.Allocator, track_data: *msg.TrackData) void {
+    if (track_data.hud_pages) |m| allocator.free(m);
+    if (track_data.camera_sets.driveable) |m| allocator.free(m);
+    if (track_data.camera_sets.onboard) |m| allocator.free(m);
+    if (track_data.camera_sets.helicam) |m| allocator.free(m);
+    if (track_data.camera_sets.pitlane) |m| allocator.free(m);
+    if (track_data.camera_sets.set_1) |m| allocator.free(m);
+    if (track_data.camera_sets.set_2) |m| allocator.free(m);
+    if (track_data.camera_sets.set_vr) |m| allocator.free(m);
 }
 
 pub fn entryListCar(
