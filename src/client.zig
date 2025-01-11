@@ -7,12 +7,6 @@ const msg = @import("msg.zig");
 const enums = @import("enums.zig");
 const types = @import("types.zig");
 
-const DEBUG = true;
-
-pub fn debugLog(comptime fmt: []const u8, args: anytype) void {
-    if (DEBUG) std.debug.print(fmt, args);
-}
-
 pub const Client = struct {
     allocator: std.mem.Allocator,
     socket: network.Socket,
@@ -20,6 +14,7 @@ pub const Client = struct {
     connection: Connection,
     handlers: Handlers = .{},
     data: Data,
+    debug: bool = false,
 
     pub const Connection = struct {
         id: ?i32 = null,
@@ -38,13 +33,13 @@ pub const Client = struct {
     };
 
     pub const Handlers = struct {
-        registrationResult: ?*const fn (msg.RegistrationResult) void = null,
-        realtimeUpdate: ?*const fn (msg.RealtimeUpdate) void = null,
-        realtimeCarUpdate: ?*const fn (msg.RealtimeCarUpdate) void = null,
-        entryList: ?*const fn ([]u16) void = null,
-        trackData: ?*const fn (msg.TrackData) void = null,
-        entryListCar: ?*const fn (msg.EntryListCar) void = null,
-        broadcastingEvent: ?*const fn (msg.BroadcastingEvent) void = null,
+        registrationResult: ?*const fn (*Client, msg.RegistrationResult) void = null,
+        realtimeUpdate: ?*const fn (*Client, msg.RealtimeUpdate) void = null,
+        realtimeCarUpdate: ?*const fn (*Client, msg.RealtimeCarUpdate) void = null,
+        entryList: ?*const fn (*Client, []u16) void = null,
+        trackData: ?*const fn (*Client, msg.TrackData) void = null,
+        entryListCar: ?*const fn (*Client, msg.EntryListCar) void = null,
+        broadcastingEvent: ?*const fn (*Client, msg.BroadcastingEvent) void = null,
     };
 
     pub const InitParams = struct {
@@ -55,7 +50,12 @@ pub const Client = struct {
         password: []const u8,
         cmd_password: []const u8 = "",
         update_ms: u16 = 200,
+        debug: bool = false,
     };
+
+    pub fn debugPrint(self: *@This(), comptime fmt: []const u8, args: anytype) void {
+        if (self.debug) std.debug.print(fmt, args);
+    }
 
     pub fn defaultRecvTimeout(self: *@This()) u32 {
         const ums: u32 = @intCast(self.connection.update_ms);
@@ -65,9 +65,7 @@ pub const Client = struct {
     }
 
     pub fn init(params: InitParams) !@This() {
-        debugLog("Init network features...\n", .{});
         try network.init();
-        debugLog("Opening socket...\n", .{});
         var client = @This(){
             .allocator = params.allocator,
             .socket = try network.connectToHost(
@@ -85,7 +83,10 @@ pub const Client = struct {
                 .update_ms = params.update_ms,
             },
             .data = .{ .car_map = types.CarMap.init(params.allocator) },
+            .debug = params.debug,
         };
+        client.debugPrint("Initialized network features\n", .{});
+        client.debugPrint("Opended socket\n", .{});
         try client.socket.setReadTimeout(client.defaultRecvTimeout());
         return client;
     }
@@ -93,9 +94,9 @@ pub const Client = struct {
     pub fn deinit(self: *@This()) void {
         self.data.car_map.deinit();
         self.socket.close();
-        debugLog("Closed socket\n", .{});
+        self.debugPrint("Closed socket\n", .{});
         network.deinit();
-        debugLog("Network features deinitialized\n", .{});
+        self.debugPrint("Network features deinitialized\n", .{});
     }
 
     pub fn send(self: *@This(), data: []const u8) !void {
@@ -104,7 +105,7 @@ pub const Client = struct {
 
     pub fn connect(self: *@This()) !void {
         if (self.connection.connected) return;
-        debugLog("Will connect...\n", .{});
+        self.debugPrint("Will connect...\n", .{});
         var writer = try format.connect(
             self.allocator,
             self.connection.name,
@@ -118,10 +119,10 @@ pub const Client = struct {
 
     pub fn disconnect(self: *@This()) void {
         if (!self.connection.connected) {
-            debugLog("Nothing to disconnect\n", .{});
+            self.debugPrint("Nothing to disconnect\n", .{});
             return;
         }
-        debugLog("Will disconnect...\n", .{});
+        self.debugPrint("Will disconnect...\n", .{});
         self.send(format.disconnect()) catch return;
         self.connection.connected = false;
         self.connection.id = null;
@@ -131,11 +132,11 @@ pub const Client = struct {
         var buf: [1024]u8 = undefined;
         const len = self.socket.receive(&buf) catch |err| switch (err) {
             error.WouldBlock => {
-                debugLog("Recv timeout; allow exit\n", .{});
+                self.debugPrint("Recv timeout; allow exit\n", .{});
                 return;
             },
             error.ConnectionRefused => {
-                debugLog("Connection refused; is ACC running?\n", .{});
+                self.debugPrint("Connection refused; is ACC running?\n", .{});
                 std.time.sleep(self.defaultRecvTimeout());
                 return;
             },
@@ -153,47 +154,47 @@ pub const Client = struct {
                 const res = try parse.registrationResult(r);
                 self.connection.id = res.connection_id;
                 self.connection.connected = res.success;
-                if (self.handlers.registrationResult) |handler| handler(res);
+                if (self.handlers.registrationResult) |handler| handler(self, res);
                 if (res.read_only) return;
                 try self.requestEntryList();
                 try self.requestTrackData();
             },
             .realtime_update => {
                 const res = try parse.realtimeUpdate(r);
-                if (self.handlers.realtimeUpdate) |handler| handler(res);
+                if (self.handlers.realtimeUpdate) |handler| handler(self, res);
             },
             .realtime_car_update => {
                 const res = try parse.realtimeCarUpdate(r);
-                if (self.handlers.realtimeCarUpdate) |handler| handler(res);
+                if (self.handlers.realtimeCarUpdate) |handler| handler(self, res);
             },
             .entry_list => {
                 self.data.car_map.clearRetainingCapacity();
                 const res = try parse.entryList(self.allocator, r);
                 defer self.allocator.free(res);
                 for (res) |id| try self.data.car_map.put(id, msg.Car{});
-                if (self.handlers.entryList) |handler| handler(res);
+                if (self.handlers.entryList) |handler| handler(self, res);
             },
             .track_data => {
                 var res = try parse.trackData(self.allocator, r);
                 defer parse.deinitTrackData(self.allocator, &res);
                 self.connection.id = res.connection_id;
-                if (self.handlers.trackData) |handler| handler(res);
+                if (self.handlers.trackData) |handler| handler(self, res);
             },
             .entry_list_car => {
                 const res = try parse.entryListCar(self.allocator, r, &self.data.car_map);
                 defer self.allocator.free(res.drivers);
-                if (self.handlers.entryListCar) |handler| handler(res);
+                if (self.handlers.entryListCar) |handler| handler(self, res);
             },
             .broadcasting_event => {
                 const res = try parse.broadcastingEvent(r, &self.data.car_map);
-                if (self.handlers.broadcastingEvent) |handler| handler(res);
+                if (self.handlers.broadcastingEvent) |handler| handler(self, res);
             },
         }
     }
 
     fn requestEntryList(self: *@This()) !void {
         if (self.connection.id) |id| {
-            debugLog("Will request entry list...\n", .{});
+            self.debugPrint("Will request entry list...\n", .{});
             var writer = try format.requestEntryList(self.allocator, id);
             defer writer.deinit();
             try self.send(writer.asBytes());
@@ -202,7 +203,7 @@ pub const Client = struct {
 
     fn requestTrackData(self: *@This()) !void {
         if (self.connection.id) |id| {
-            debugLog("Will request track data...\n", .{});
+            self.debugPrint("Will request track data...\n", .{});
             var writer = try format.requestTrackData(self.allocator, id);
             defer writer.deinit();
             try self.send(writer.asBytes());
@@ -210,22 +211,22 @@ pub const Client = struct {
     }
 
     pub fn blockingRecv(self: *@This()) !void {
-        debugLog("Start recv...\n\n", .{});
+        self.debugPrint("Start recv...\n\n", .{});
         defer self.connection.recv = true;
         while (self.connection.recv) {
             try self.recv();
         }
-        debugLog("\nExiting blocking recv...\n", .{});
+        self.debugPrint("\nExiting blocking recv...\n", .{});
     }
 
     pub fn spawnRecvThread(self: *@This()) !void {
-        debugLog("Spawning recv thread...\n", .{});
+        self.debugPrint("Spawning recv thread...\n", .{});
         self.thread = try std.Thread.spawn(.{}, blockingRecv, .{self});
     }
 
     pub fn joinRecvThread(self: *@This()) void {
         self.thread.join();
-        debugLog("Joined recv thread\n", .{});
+        self.debugPrint("Joined recv thread\n", .{});
     }
 
     pub fn endRecvBlocking(self: *@This()) void {
