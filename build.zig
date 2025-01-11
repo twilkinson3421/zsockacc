@@ -11,14 +11,21 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
+    const lib = b.addModule("root", .{ .root_source_file = b.path("src/root.zig") });
+
     {
         const args = .{ .target = target, .optimize = optimize };
         const network = b.dependency("network", args).module("network");
         const zutil = b.dependency("zutil", .{}).module("zutil");
         const zbinutils = b.dependency("zbinutils", .{}).module("binutils");
+
         exe.root_module.addImport("network", network);
         exe.root_module.addImport("zutil", zutil);
         exe.root_module.addImport("zbinutils", zbinutils);
+
+        lib.addImport("network", network);
+        lib.addImport("zutil", zutil);
+        lib.addImport("zbinutils", zbinutils);
     }
 
     b.installArtifact(exe);
