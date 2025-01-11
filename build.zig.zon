@@ -1,0 +1,26 @@
+.{
+    .name = "zsockacc",
+
+    .version = "0.0.0",
+
+    .dependencies = .{
+        .network = .{
+            .url = "https://github.com/ikskuh/zig-network/archive/805ce63eec48373ec497542f18f19d7c484b9b2e.tar.gz",
+            .hash = "122007f014c736cee735f1fe71660e39aa9f8c9351deab2e35c4dd9ab69d37d8db46",
+        },
+        .zutil = .{
+            .url = "https://github.com/twilkinson3421/zutil/archive/4da5744ad7eba5d76d29128ec12902404ceb8e13.tar.gz",
+            .hash = "12201b588b48ac65a12c9670ef1962efec7811c5e62647a40620cef625ff0c02ef9a",
+        },
+        .zbinutils = .{
+            .url = "https://github.com/twilkinson3421/zbinutils/archive/70099932d08622a022826df807d00caa29ffbd6c.tar.gz",
+            .hash = "1220f370f4684acbf66d1b6dcca4d901f9c4e8fd1babf44527e0d9fcfe4d702a650c",
+        },
+    },
+
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src",
+    },
+}
