@@ -73,13 +73,13 @@ pub fn main() !void {
         .debug = true,
     });
 
-    client.handlers.registrationResult = &handleRegistrationResult;
-    client.handlers.realtimeUpdate = &handleRealtimeUpdate;
-    client.handlers.realtimeCarUpdate = &handleRealtimeCarUpdate;
-    client.handlers.entryList = &handleEntryList;
-    client.handlers.trackData = &handleTrackData;
-    client.handlers.entryListCar = &handleEntryListCar;
-    client.handlers.broadcastingEvent = &handleBroadcastingEvent;
+    client.setRegistrationResultCallback(&handleRegistrationResult);
+    client.setRealtimeUpdateCallback(&handleRealtimeUpdate);
+    client.setRealtimeCarUpdateCallback(&handleRealtimeCarUpdate);
+    client.setEntryListCallback(&handleEntryList);
+    client.setTrackDataCallback(&handleTrackData);
+    client.setEntryListCarCallback(&handleEntryListCar);
+    client.setBroadcastingEventCallback(&handleBroadcastingEvent);
 
     defer {
         client.terminateRecvThread();

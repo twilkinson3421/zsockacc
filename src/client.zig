@@ -28,19 +28,53 @@ pub const Client = struct {
         update_ms: u16 = 200,
     };
 
-    pub const Data = struct {
-        car_map: types.CarMap,
-    };
+    pub const Data = struct { car_map: types.CarMap };
+
+    pub const RegistrationResultHandler = ?*const fn (*@This(), msg.RegistrationResult) void;
+    pub const RealtimeUpdateHandler = ?*const fn (*@This(), msg.RealtimeUpdate) void;
+    pub const RealtimeCarUpdateHandler = ?*const fn (*@This(), msg.RealtimeCarUpdate) void;
+    pub const EntryListHandler = ?*const fn (*@This(), []u16) void;
+    pub const TrackDataHandler = ?*const fn (*@This(), msg.TrackData) void;
+    pub const EntryListCarHandler = ?*const fn (*@This(), msg.EntryListCar) void;
+    pub const BroadcastingEventHandler = ?*const fn (*@This(), msg.BroadcastingEvent) void;
 
     pub const Handlers = struct {
-        registrationResult: ?*const fn (*Client, msg.RegistrationResult) void = null,
-        realtimeUpdate: ?*const fn (*Client, msg.RealtimeUpdate) void = null,
-        realtimeCarUpdate: ?*const fn (*Client, msg.RealtimeCarUpdate) void = null,
-        entryList: ?*const fn (*Client, []u16) void = null,
-        trackData: ?*const fn (*Client, msg.TrackData) void = null,
-        entryListCar: ?*const fn (*Client, msg.EntryListCar) void = null,
-        broadcastingEvent: ?*const fn (*Client, msg.BroadcastingEvent) void = null,
+        registrationResult: RegistrationResultHandler = null,
+        realtimeUpdate: RealtimeUpdateHandler = null,
+        realtimeCarUpdate: RealtimeCarUpdateHandler = null,
+        entryList: EntryListHandler = null,
+        trackData: TrackDataHandler = null,
+        entryListCar: EntryListCarHandler = null,
+        broadcastingEvent: BroadcastingEventHandler = null,
     };
+
+    pub fn setRegistrationResultCallback(self: *@This(), callback: RegistrationResultHandler) void {
+        self.handlers.registrationResult = callback;
+    }
+
+    pub fn setRealtimeUpdateCallback(self: *@This(), callback: RealtimeUpdateHandler) void {
+        self.handlers.realtimeUpdate = callback;
+    }
+
+    pub fn setRealtimeCarUpdateCallback(self: *@This(), callback: RealtimeCarUpdateHandler) void {
+        self.handlers.realtimeCarUpdate = callback;
+    }
+
+    pub fn setEntryListCallback(self: *@This(), callback: EntryListHandler) void {
+        self.handlers.entryList = callback;
+    }
+
+    pub fn setTrackDataCallback(self: *@This(), callback: TrackDataHandler) void {
+        self.handlers.trackData = callback;
+    }
+
+    pub fn setEntryListCarCallback(self: *@This(), callback: EntryListCarHandler) void {
+        self.handlers.entryListCar = callback;
+    }
+
+    pub fn setBroadcastingEventCallback(self: *@This(), callback: BroadcastingEventHandler) void {
+        self.handlers.broadcastingEvent = callback;
+    }
 
     pub const InitParams = struct {
         allocator: std.mem.Allocator,
